@@ -3,429 +3,614 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>ブロック崩し (AIパワーアップ搭載 Ver.)</title>
+    <title>宇宙船シューティングゲーム</title>
     <style>
-        @keyframes neon-pulse {
-            0%, 100% {
-                box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan), 0 0 15px var(--neon-cyan);
-                border-color: var(--neon-cyan);
-            }
-            50% {
-                box-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 30px var(--neon-pink);
-                border-color: var(--neon-pink);
-            }
-        }
-        @keyframes subtle-throb {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.03); }
-        }
-        @keyframes powerup-text-anim {
-            0% { transform: translateY(0) scale(0.5); opacity: 0; }
-            50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
-            100% { transform: translateY(-60px) scale(1); opacity: 0; }
-        }
-
-        :root {
-            --cyber-bg: #0d0221;
-            --cyber-grid: rgba(0, 255, 255, 0.1);
-            --neon-pink: #ff00ff;
-            --neon-cyan: #00ffff;
-            --neon-lime: #7fff00;
-            --text-color: #f0f0f0;
-        }
-        
         body {
-            margin: 0; padding: 0; background-color: var(--cyber-bg); color: var(--text-color); font-family: 'Consolas', 'Courier New', monospace;
-            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none;
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
         }
 
         #game-container {
-            width: 95%; max-width: 1000px; aspect-ratio: 16 / 10; position: relative;
-            border: 2px solid var(--neon-cyan); border-radius: 15px; overflow: hidden; animation: neon-pulse 4s ease-in-out infinite;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9;
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            border: 2px solid #0ff;
+            background-color: #001;
+            cursor: none;
         }
 
-        #gameCanvas { display: block; width: 100%; height: 100%; background-color: transparent; }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
 
-        #game-info {
-            display: flex; justify-content: space-between; width: 95%; max-width: 1000px;
-            padding: 10px 0; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+        #ui-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.5em;
+            text-shadow: 0 0 5px #fff;
+            pointer-events: none;
+        }
+        
+        #boss-health-bar-container {
+            position: absolute;
+            bottom: 20px;
+            left: 5%;
+            width: 90%;
+            height: 20px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid #ff00ff;
+            border-radius: 5px;
+            display: none; /* 初期状態は非表示 */
+             pointer-events: none;
+        }
+        
+        #boss-health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #ff00ff;
+            transition: width 0.2s linear;
         }
 
         #message-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(13, 2, 33, 0.95);
-            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
-            transition: opacity 0.5s ease; opacity: 1; z-index: 10;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 10;
+        }
+
+        #message-title {
+            font-size: 3em;
+            text-shadow: 0 0 10px #ff00ff;
         }
         
-        #message-overlay.hidden { opacity: 0; pointer-events: none; }
-
-        #message-box {
-            display: flex; flex-direction: column; gap: 20px; width: 80%; max-width: 500px;
+        #message-subtitle {
+            font-size: 1.2em;
+            margin-top: 10px;
         }
 
-        #message-text {
-            font-size: 2.5em; font-weight: bold; color: var(--neon-pink);
-            text-shadow: 0 0 5px var(--neon-pink), 0 0 15px var(--neon-pink), 0 0 25px #000;
+        #start-button {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 1.5em;
+            color: #0ff;
+            background-color: transparent;
+            border: 2px solid #0ff;
+            border-radius: 5px;
+            cursor: pointer;
+            text-shadow: 0 0 5px #0ff;
+            transition: all 0.3s;
         }
-        /* AIコーチのメッセージスタイル */
-        #ai-coach-message {
-            font-size: 1.2em; color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan); margin-top: 10px; min-height: 30px;
-        }
-
-        .button {
-            background: transparent; border: 2px solid var(--neon-lime); color: var(--neon-lime);
-            padding: 15px 20px; text-align: center; font-size: 1.2em; font-weight: bold;
-            border-radius: 50px; cursor: pointer; transition: all 0.3s ease;
-            text-shadow: 0 0 5px var(--neon-lime); box-shadow: 0 0 10px var(--neon-lime) inset, 0 0 10px var(--neon-lime);
-        }
-
-        .button:hover:not(:disabled), .button:active:not(:disabled) {
-            background: var(--neon-lime); color: var(--cyber-bg);
-            box-shadow: 0 0 20px var(--neon-lime) inset, 0 0 40px var(--neon-lime);
-        }
-        
-        .button:disabled { cursor: not-allowed; opacity: 0.5; animation: none; }
-
-        .ai-button {
-            border-color: var(--neon-pink); color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink);
-            box-shadow: 0 0 10px var(--neon-pink) inset, 0 0 10px var(--neon-pink); animation: subtle-throb 2s ease-in-out infinite;
-        }
-        .ai-button:hover:not(:disabled), .ai-button:active:not(:disabled) {
-             background: var(--neon-pink); color: var(--cyber-bg);
-             box-shadow: 0 0 20px var(--neon-pink) inset, 0 0 40px var(--neon-pink);
-        }
-        
-        #ai-prompt {
-            width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--neon-cyan);
-            border-radius: 8px; color: var(--text-color); font-family: inherit; font-size: 1em; text-align: center; box-sizing: border-box;
-        }
-        #ai-prompt::placeholder { color: rgba(240, 240, 240, 0.5); }
-
-        /* AIパワーアップのテキスト表示用 */
-        #powerup-text {
-            position: absolute; left: 50%; top: 50%;
-            transform: translateX(-50%);
-            font-size: 2em; font-weight: bold; color: var(--neon-lime);
-            text-shadow: 0 0 10px var(--neon-lime), 0 0 20px #fff;
-            opacity: 0;
-            z-index: 20;
-            pointer-events: none;
-        }
-        #powerup-text.show {
-            animation: powerup-text-anim 2s ease-out forwards;
+        #start-button:hover {
+            background-color: #0ff;
+            color: #000;
         }
 
     </style>
 </head>
 <body>
-    <div id="game-info">
-        <span>SCORE: <span id="score">0</span></span>
-        <span>LIVES: <span id="lives">5</span></span>
-    </div>
+
     <div id="game-container">
         <canvas id="gameCanvas"></canvas>
-        <div id="powerup-text"></div>
+        <div id="ui-container">
+            <span id="score">SCORE: 0</span>
+            <span id="lives">LIVES: 3</span>
+        </div>
+        <div id="boss-health-bar-container">
+            <div id="boss-health-bar"></div>
+        </div>
         <div id="message-overlay">
-            <div id="message-box">
-                <div id="message-text">CYBER BREAKER</div>
-                 <div id="ai-coach-message"></div>
-                <input type="text" id="ai-prompt" placeholder="例：銀河、ピラミッド">
-                <button id="aiStartButton" class="button ai-button">✨ AIでステージ生成</button>
-                <button id="startButton" class="button">デフォルトステージで開始</button>
-                 <div id="loading-indicator" style="display: none; font-size: 1.2em; color: var(--neon-cyan);">生成中...</div>
-            </div>
+            <h1 id="message-title">SPACE ASSAULT</h1>
+            <p id="message-subtitle">キーボード[矢印]で移動, [SPACE]で攻撃 / タッチ操作対応</p>
+            <button id="start-button">START</button>
         </div>
     </div>
+
     <script>
+        // --- 初期設定 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
         const livesEl = document.getElementById('lives');
         const messageOverlay = document.getElementById('message-overlay');
-        const messageText = document.getElementById('message-text');
-        const startButton = document.getElementById('startButton');
-        const aiPromptInput = document.getElementById('ai-prompt');
-        const aiStartButton = document.getElementById('aiStartButton');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        const powerupTextEl = document.getElementById('powerup-text');
-        const aiCoachMessageEl = document.getElementById('ai-coach-message');
+        const messageTitle = document.getElementById('message-title');
+        const messageSubtitle = document.getElementById('message-subtitle');
+        const startButton = document.getElementById('start-button');
+        const bossHealthBarContainer = document.getElementById('boss-health-bar-container');
+        const bossHealthBar = document.getElementById('boss-health-bar');
 
-        let gameActive = false, score = 0, lives = 5, canvasWidth, canvasHeight;
-        let ball = { x: 0, y: 0, radius: 0, dx: 0, dy: 0 };
-        let baseSpeed, maxSpeed, speedIncrement;
-        let paddle = { height: 0, width: 0, x: 0 };
-        const brick = { rowCount: 10, columnCount: 12, width: 0, height: 0, padding: 0, offsetTop: 0, offsetLeft: 0 };
-        const brickColors = ['#6600ff', '#ff00ff', '#00ffff', '#7fff00', '#ffff00', '#ff3300', '#ff0066', '#3366ff', '#ff9900', '#cc00ff'];
-        let bricks = [];
+        let canvasWidth, canvasHeight;
 
-        // --- Gemini API 呼び出し ---
-        async function callGemini(prompt, jsonSchema = null) {
-            const payload = {
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-            };
-            if (jsonSchema) {
-                payload.generationConfig = {
-                    responseMimeType: "application/json",
-                    responseSchema: jsonSchema
-                };
-            }
-            const apiKey = ""; 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-            
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-            const result = await response.json();
-            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
-                const part = result.candidates[0].content.parts[0];
-                return jsonSchema ? JSON.parse(part.text) : part.text;
-            }
-            throw new Error("AIからの応答がありません。");
-        }
+        // --- ゲームの状態管理 ---
+        let game;
+        let keys = {};
+        let touchPos = null;
 
-        async function generateLevelWithAI(prompt) {
-            loadingIndicator.style.display = 'block';
-            aiStartButton.disabled = true;
-            startButton.disabled = true;
-            try {
-                const systemPrompt = `あなたはブロック崩しゲームのステージをデザインするAIです。ユーザーの指示「${prompt}」に基づき、${brick.columnCount}列x${brick.rowCount}行のブロック配置をJSONで生成してください。アクティブなブロックは1、空は0です。`;
-                const schema = { type: "OBJECT", properties: { layout: { type: "ARRAY", items: { type: "ARRAY", items: { type: "NUMBER" } } } }, required: ["layout"] };
-                const result = await callGemini(systemPrompt, schema);
-                if (result.layout && result.layout.length === brick.rowCount && result.layout[0].length === brick.columnCount) {
-                    return result.layout;
-                }
-                throw new Error("無効なレイアウトデータが返されました。");
-            } catch (error) {
-                console.error("AIステージ生成エラー:", error);
-                alert("ステージ生成に失敗しました。プロンプトを変えてもう一度お試しください。");
-                return null;
-            } finally {
-                loadingIndicator.style.display = 'none';
-                aiStartButton.disabled = false;
-                startButton.disabled = false;
+        // --- 星空の背景 ---
+        let stars = [];
+        const numStars = 200;
+        const starSpeed = 0.5;
+
+        function createStars() {
+            stars = [];
+            for (let i = 0; i < numStars; i++) {
+                stars.push({
+                    x: Math.random() * canvasWidth,
+                    y: Math.random() * canvasHeight,
+                    size: Math.random() * 2 + 1,
+                    speed: Math.random() * starSpeed + 0.2
+                });
             }
         }
         
-        async function getAIPowerUpName() {
-            try {
-                const prompt = `あなたはゲームのAIです。サイバーパンクなブロック崩しで使える、一時的なパワーアップの名前を一つ考案してください。例：「マルチボール」「プラズマ砲」「時間歪曲」。クリエイティブで短い日本語のフレーズ（6文字以内）で、名前だけを返してください。`;
-                const powerUpName = await callGemini(prompt);
-                powerupTextEl.textContent = powerUpName.trim();
-                powerupTextEl.className = 'show';
-                setTimeout(() => { powerupTextEl.className = ''; }, 2000);
-            } catch(error) {
-                console.error("AIパワーアップ名生成エラー:", error);
+        function updateAndDrawStars() {
+            ctx.fillStyle = '#FFF';
+            for (const star of stars) {
+                star.x -= star.speed;
+                if (star.x < 0) {
+                    star.x = canvasWidth;
+                    star.y = Math.random() * canvasHeight;
+                }
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.size * 0.5, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
-
-        async function getAICoachComment(finalScore) {
-            aiCoachMessageEl.textContent = "AIコーチが分析中...";
-            try {
-                const prompt = `あなたはサイバーパンクなゲームのAIコーチです。プレイヤーがブロック崩しをゲームオーバーになりました。スコアは ${finalScore}点です。このスコアに基づき、プレイヤーの健闘を称え、次につながるような短いアドバイスや励ましの言葉を、20文字程度の日本語で返してください。`;
-                const comment = await callGemini(prompt);
-                aiCoachMessageEl.textContent = comment;
-            } catch (error) {
-                console.error("AIコーチコメント生成エラー:", error);
-                aiCoachMessageEl.textContent = "次の挑戦を待っている...";
-            }
+        
+        // --- 便利な関数 ---
+        function randomBetween(min, max) {
+            return Math.random() * (max - min) + min;
         }
 
-        // --- ゲームロジック ---
-        function createBricks(customLayout = null) {
-            bricks = [];
-            let hasBricks = false;
-            let powerupBlocksCount = 0;
-            const maxPowerupBlocks = 3; // ステージあたりのパワーアップブロック最大数
+        // --- クラス定義 ---
 
-            for (let r = 0; r < brick.rowCount; r++) {
-                bricks[r] = [];
-                for (let c = 0; c < brick.columnCount; c++) {
-                    let status = customLayout ? (customLayout[r]?.[c] ?? 0) : 1;
-                    if (status === 1) {
-                        hasBricks = true;
-                        // ランダムでパワーアップブロックに変化させる
-                        if (powerupBlocksCount < maxPowerupBlocks && Math.random() < 0.1) {
-                            status = 2; // 2はパワーアップブロック
-                            powerupBlocksCount++;
-                        }
+        // プレイヤー
+        class Player {
+            constructor() {
+                this.width = 50;
+                this.height = 30;
+                this.x = 50;
+                this.y = canvasHeight / 2 - this.height / 2;
+                this.speed = 5;
+                this.bullets = [];
+                this.shootCooldown = 15;
+                this.shootTimer = 0;
+                this.invincible = false;
+                this.invincibleTimer = 0;
+            }
+
+            draw() {
+                if (this.invincible && Math.floor(this.invincibleTimer / 10) % 2 === 0) {
+                    return; // 点滅させる
+                }
+                ctx.fillStyle = '#0ff';
+                ctx.shadowColor = '#0ff';
+                ctx.shadowBlur = 10;
+                // 機体の描画
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.height / 2);
+                ctx.lineTo(this.x + this.width, this.y);
+                ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            update() {
+                // キーボード操作
+                if (keys['ArrowUp'] || keys['w']) this.y -= this.speed;
+                if (keys['ArrowDown'] || keys['s']) this.y += this.speed;
+                if (keys['ArrowLeft'] || keys['a']) this.x -= this.speed;
+                if (keys['ArrowRight'] || keys['d']) this.x += this.speed;
+
+                // タッチ操作
+                if (touchPos) {
+                    const dx = touchPos.x - (this.x + this.width / 2);
+                    const dy = touchPos.y - (this.y + this.height / 2);
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > this.speed) {
+                       this.x += (dx / dist) * this.speed;
+                       this.y += (dy / dist) * this.speed;
                     }
-                    bricks[r][c] = { x: 0, y: 0, status: status };
+                }
+
+                // 画面外に出ないように制限
+                this.x = Math.max(0, Math.min(canvasWidth - this.width, this.x));
+                this.y = Math.max(0, Math.min(canvasHeight - this.height, this.y));
+
+                // 弾の発射
+                if ((keys[' '] || touchPos) && this.shootTimer <= 0) {
+                    this.shoot();
+                    this.shootTimer = this.shootCooldown;
+                }
+                if (this.shootTimer > 0) this.shootTimer--;
+                
+                // 無敵時間
+                if (this.invincible) {
+                    this.invincibleTimer--;
+                    if(this.invincibleTimer <= 0) this.invincible = false;
+                }
+
+                this.bullets.forEach((bullet, index) => {
+                    bullet.update();
+                    if (bullet.x > canvasWidth) this.bullets.splice(index, 1);
+                });
+            }
+
+            shoot() {
+                this.bullets.push(new Bullet(this.x + this.width, this.y + this.height / 2, 8, '#0ff'));
+            }
+
+            hit() {
+                if (!this.invincible) {
+                    game.lives--;
+                    livesEl.textContent = `LIVES: ${game.lives}`;
+                    this.invincible = true;
+                    this.invincibleTimer = 120; // 2秒間の無敵
+                    game.addExplosion(this.x, this.y, '#0ff');
+                    if (game.lives <= 0) {
+                        game.gameOver();
+                    }
                 }
             }
-            if (!hasBricks) {
-                console.log("AIが空のステージを生成したため、デフォルトステージを生成します。");
-                createBricks(); 
+        }
+        
+        // 弾
+        class Bullet {
+            constructor(x, y, speed, color) {
+                this.x = x;
+                this.y = y;
+                this.speed = speed;
+                this.color = color;
+                this.width = 15;
+                this.height = 3;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.fillRect(this.x, this.y - this.height / 2, this.width, this.height);
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.x += this.speed;
+            }
+        }
+        
+        // 敵
+        class Enemy {
+            constructor() {
+                this.width = 40;
+                this.height = 25;
+                this.x = canvasWidth;
+                this.y = randomBetween(0, canvasHeight - this.height);
+                this.speed = randomBetween(2, 4);
+                this.health = 2;
+                this.scoreValue = 100;
+            }
+
+            draw() {
+                ctx.fillStyle = '#f0f';
+                ctx.shadowColor = '#f0f';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width, this.y + this.height/2);
+                ctx.lineTo(this.x, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            update() {
+                this.x -= this.speed;
+            }
+        }
+        
+        // ボス
+        class Boss extends Enemy {
+             constructor() {
+                super();
+                this.width = 100;
+                this.height = 100;
+                this.x = canvasWidth - this.width - 50;
+                this.y = canvasHeight / 2 - this.height / 2;
+                this.speed = 1;
+                this.maxHealth = 100;
+                this.health = this.maxHealth;
+                this.scoreValue = 5000;
+                this.movePattern = 'vertical';
+                this.attackCooldown = 50;
+                this.attackTimer = 0;
+            }
+            
+            draw() {
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 20;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // 弱点部分
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(this.x + this.width*0.25, this.y + this.height*0.25, this.width*0.5, this.height*0.5);
+
+                ctx.shadowBlur = 0;
+            }
+            
+            update() {
+                // 上下移動
+                this.y += this.speed;
+                if (this.y < 0 || this.y + this.height > canvasHeight) {
+                    this.speed *= -1;
+                }
+
+                // 攻撃
+                if(this.attackTimer <= 0) {
+                    this.shoot();
+                    this.attackTimer = this.attackCooldown;
+                }
+                if(this.attackTimer > 0) this.attackTimer--;
+            }
+            
+            shoot() {
+                game.enemyBullets.push(new Bullet(this.x, this.y + this.height/2, -8, '#ff0000'));
             }
         }
 
-        function resizeCanvas() {
+        // 爆発エフェクト
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = randomBetween(2, 5);
+                this.speedX = randomBetween(-3, 3);
+                this.speedY = randomBetween(-3, 3);
+                this.life = 30;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.life / 30;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life--;
+            }
+        }
+        
+        // メインゲームクラス
+        class Game {
+            constructor() {
+                this.player = new Player();
+                this.enemies = [];
+                this.enemyBullets = [];
+                this.particles = [];
+                this.score = 0;
+                this.lives = 3;
+                this.isGameOver = false;
+                
+                this.stage = 1;
+                this.enemySpawnTimer = 0;
+                this.enemySpawnInterval = 100;
+                this.enemiesToSpawn = 20;
+                this.enemiesSpawned = 0;
+                this.boss = null;
+            }
+
+            update() {
+                if (this.isGameOver) return;
+                
+                this.player.update();
+                
+                // 敵の出現
+                if (!this.boss && this.enemiesSpawned < this.enemiesToSpawn) {
+                    if (this.enemySpawnTimer <= 0) {
+                        this.enemies.push(new Enemy());
+                        this.enemiesSpawned++;
+                        this.enemySpawnTimer = this.enemySpawnInterval;
+                    }
+                    if (this.enemySpawnTimer > 0) this.enemySpawnTimer--;
+                } else if (!this.boss && this.enemies.length === 0 && this.enemiesSpawned >= this.enemiesToSpawn) {
+                    // ボス出現
+                    this.boss = new Boss();
+                    bossHealthBarContainer.style.display = 'block';
+                }
+
+                this.enemies.forEach((enemy, index) => {
+                    enemy.update();
+                    if (enemy.x + enemy.width < 0) this.enemies.splice(index, 1);
+                });
+                
+                if (this.boss) {
+                    this.boss.update();
+                    // ボス用の弾
+                    this.enemyBullets.forEach((bullet, index) => {
+                        bullet.update();
+                         if (bullet.x < 0) this.enemyBullets.splice(index, 1);
+                    });
+                }
+
+                this.particles.forEach((particle, index) => {
+                    particle.update();
+                    if (particle.life <= 0) this.particles.splice(index, 1);
+                });
+                
+                this.checkCollisions();
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                updateAndDrawStars();
+                this.player.draw();
+                this.player.bullets.forEach(b => b.draw());
+                this.enemies.forEach(e => e.draw());
+                this.enemyBullets.forEach(b => b.draw());
+                if (this.boss) this.boss.draw();
+                this.particles.forEach(p => p.draw());
+            }
+            
+            checkCollisions() {
+                // プレイヤーの弾 vs 敵
+                this.player.bullets.forEach((bullet, bIndex) => {
+                    // 通常の敵
+                    this.enemies.forEach((enemy, eIndex) => {
+                        if (this.isColliding(bullet, enemy)) {
+                            this.player.bullets.splice(bIndex, 1);
+                            enemy.health--;
+                            if (enemy.health <= 0) {
+                                this.addScore(enemy.scoreValue);
+                                this.addExplosion(enemy.x, enemy.y, '#f0f');
+                                this.enemies.splice(eIndex, 1);
+                            }
+                        }
+                    });
+                    // ボス
+                    if (this.boss && this.isColliding(bullet, this.boss)) {
+                         this.player.bullets.splice(bIndex, 1);
+                         this.boss.health--;
+                         bossHealthBar.style.width = (this.boss.health / this.boss.maxHealth) * 100 + '%';
+                         if (this.boss.health <= 0) {
+                             this.addScore(this.boss.scoreValue);
+                             this.addExplosion(this.boss.x, this.boss.y, '#ff0000', 50);
+                             this.boss = null;
+                             bossHealthBarContainer.style.display = 'none';
+                             this.stageClear();
+                         }
+                    }
+                });
+
+                // 敵の弾 vs プレイヤー
+                this.enemyBullets.forEach((bullet) => {
+                    if (this.isColliding(bullet, this.player)) {
+                        this.player.hit();
+                    }
+                });
+                
+                // 敵 vs プレイヤー
+                this.enemies.forEach((enemy) => {
+                     if (this.isColliding(enemy, this.player)) {
+                        this.player.hit();
+                    }
+                });
+
+                // ボス vs プレイヤー
+                if (this.boss && this.isColliding(this.boss, this.player)) {
+                    this.player.hit();
+                }
+            }
+
+            isColliding(rect1, rect2) {
+                return rect1.x < rect2.x + rect2.width &&
+                       rect1.x + rect1.width > rect2.x &&
+                       rect1.y < rect2.y + rect2.height &&
+                       rect1.y + rect1.height > rect2.y;
+            }
+            
+            addScore(value) {
+                this.score += value;
+                scoreEl.textContent = `SCORE: ${this.score}`;
+            }
+
+            addExplosion(x, y, color, count = 20) {
+                 for (let i = 0; i < count; i++) {
+                    this.particles.push(new Particle(x, y, color));
+                }
+            }
+            
+            stageClear() {
+                this.isGameOver = true; // 一時停止
+                messageOverlay.style.display = 'flex';
+                messageTitle.textContent = 'STAGE CLEAR!';
+                messageSubtitle.textContent = `SCORE: ${this.score}`;
+                startButton.textContent = 'NEXT STAGE'; // 本来は次のステージへ
+                startButton.style.display = 'block';
+            }
+
+            gameOver() {
+                this.isGameOver = true;
+                messageOverlay.style.display = 'flex';
+                messageTitle.textContent = 'GAME OVER';
+                messageSubtitle.textContent = `FINAL SCORE: ${this.score}`;
+                startButton.textContent = 'RETRY';
+                startButton.style.display = 'block';
+            }
+        }
+        
+        // --- ゲームの初期化とループ ---
+        function init() {
             const container = document.getElementById('game-container');
             canvasWidth = container.clientWidth;
             canvasHeight = container.clientHeight;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
-            initializeGameParameters();
-            if (bricks.length === 0) createBricks();
-            draw();
+            createStars();
         }
 
-        function initializeGameParameters() {
-            ball.radius = canvasWidth * 0.01;
-            paddle.height = canvasHeight * 0.025;
-            paddle.width = canvasWidth * 0.15;
-            baseSpeed = canvasHeight * 0.0045;
-            maxSpeed = canvasHeight * 0.012;
-            speedIncrement = 0.00003;
-            brick.padding = canvasWidth * 0.005;
-            brick.offsetTop = canvasHeight * 0.05;
-            brick.offsetLeft = canvasWidth * 0.025;
-            const bricksAreaWidth = canvasWidth * 0.95;
-            brick.width = (bricksAreaWidth - (brick.columnCount) * brick.padding) / brick.columnCount;
-            brick.height = canvasHeight * 0.04;
+        function gameLoop() {
+            if (game) {
+                game.update();
+                game.draw();
+            }
+            requestAnimationFrame(gameLoop);
         }
 
-        function resetBallAndPaddle() {
-            gameActive = false;
-            ball.x = canvasWidth / 2;
-            ball.y = canvasHeight - (canvasHeight * 0.15);
-            paddle.x = (canvasWidth - paddle.width) / 2;
-            let currentSpeed = baseSpeed;
-            ball.dy = -currentSpeed;
-            ball.dx = currentSpeed * (Math.random() < 0.5 ? 1 : -1);
-            setTimeout(() => { gameActive = true; }, 500);
-        }
+        // --- イベントリスナー設定 ---
+        window.addEventListener('keydown', e => { keys[e.key] = true; });
+        window.addEventListener('keyup', e => { keys[e.key] = false; });
         
-        function startGame() {
-            messageOverlay.classList.add('hidden');
-            score = 0;
-            lives = 5;
-            scoreEl.textContent = score;
-            livesEl.textContent = lives;
-            aiCoachMessageEl.textContent = ""; // コーチのコメントをリセット
-            initializeGameParameters();
-            resetBallAndPaddle();
-        }
-
-        // --- イベントリスナー ---
-        startButton.addEventListener('click', () => { createBricks(); startGame(); });
-        aiStartButton.addEventListener('click', async () => {
-            const prompt = aiPromptInput.value.trim();
-            if (!prompt) { alert("ステージのイメージを入力してください。"); return; }
-            const aiLayout = await generateLevelWithAI(prompt);
-            if (aiLayout) { createBricks(aiLayout); startGame(); }
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            touchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        });
+        canvas.addEventListener('touchmove', e => {
+             e.preventDefault();
+            touchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        });
+        canvas.addEventListener('touchend', e => {
+             e.preventDefault();
+            touchPos = null;
         });
 
-        document.addEventListener('mousemove', e => movePaddle(e.clientX), false);
-        document.addEventListener('touchmove', e => { if (e.touches.length > 0) movePaddle(e.touches[0].clientX); }, false);
-        window.addEventListener('resize', resizeCanvas, false);
-
-        function movePaddle(clientX) {
-            const relativeX = clientX - canvas.getBoundingClientRect().left;
-            paddle.x = relativeX - paddle.width / 2;
-            if (paddle.x < 0) paddle.x = 0;
-            if (paddle.x + paddle.width > canvasWidth) paddle.x = canvasWidth - paddle.width;
-        }
+        startButton.addEventListener('click', () => {
+            messageOverlay.style.display = 'none';
+            game = new Game();
+            scoreEl.textContent = `SCORE: 0`;
+            livesEl.textContent = `LIVES: 3`;
+        });
         
-        // --- 描画と衝突判定 ---
-        function drawBackground() {
-            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--cyber-bg').trim();
-            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-            ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--cyber-grid').trim();
-            ctx.lineWidth = 1;
-            for (let i = 0; i < canvasWidth; i += 20) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvasHeight); ctx.stroke(); }
-            for (let i = 0; i < canvasHeight; i += 20) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvasWidth, i); ctx.stroke(); }
-        }
+        window.addEventListener('resize', init);
 
-        function drawWithGlow(drawFunction, color) {
-            ctx.shadowColor = color; ctx.shadowBlur = 15; ctx.fillStyle = color;
-            ctx.beginPath(); drawFunction(); ctx.fill(); ctx.closePath(); ctx.shadowBlur = 0;
-        }
-
-        const drawBall = () => ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-        const drawPaddle = () => ctx.rect(paddle.x, canvasHeight - paddle.height, paddle.width, paddle.height);
-
-        function drawBricks() {
-            for (let r = 0; r < brick.rowCount; r++) {
-                for (let c = 0; c < brick.columnCount; c++) {
-                    const b = bricks[r][c];
-                    if (b.status > 0) {
-                        const color = b.status === 2 ? '#ffffff' : brickColors[r % brickColors.length]; // パワーアップブロックは白
-                        b.x = (c * (brick.width + brick.padding)) + brick.offsetLeft;
-                        b.y = (r * (brick.height + brick.padding)) + brick.offsetTop;
-                        ctx.shadowColor = color; ctx.shadowBlur = b.status === 2 ? 20 : 10;
-                        ctx.fillStyle = color;
-                        ctx.beginPath(); ctx.rect(b.x, b.y, brick.width, brick.height); ctx.fill(); ctx.closePath(); ctx.shadowBlur = 0;
-                    }
-                }
-            }
-        }
-        
-        function collisionDetection() {
-            if (ball.x + ball.dx > canvasWidth - ball.radius || ball.x + ball.dx < ball.radius) { ball.dx = -ball.dx; }
-            if (ball.y + ball.dy < ball.radius) { ball.dy = -ball.dy; }
-            else if (ball.y + ball.dy > canvasHeight - ball.radius - paddle.height) {
-                if (ball.x > paddle.x && ball.x < paddle.x + paddle.width && ball.y < canvasHeight - paddle.height) {
-                    let collidePoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-                    let angle = collidePoint * (Math.PI / 3);
-                    let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-                    ball.dx = currentSpeed * Math.sin(angle);
-                    ball.dy = -currentSpeed * Math.cos(angle);
-                } else if (ball.y > canvasHeight) {
-                    lives--;
-                    livesEl.textContent = lives;
-                    if (lives <= 0) { gameOver(false); }
-                    else { resetBallAndPaddle(); }
-                }
-            }
-            let allBricksBroken = true;
-            for (let r = 0; r < brick.rowCount; r++) {
-                for (let c = 0; c < brick.columnCount; c++) {
-                    const b = bricks[r][c];
-                    if (b.status > 0) {
-                        allBricksBroken = false;
-                        if (ball.x > b.x && ball.x < b.x + brick.width && ball.y > b.y && ball.y < b.y + brick.height) {
-                            ball.dy = -ball.dy;
-                            if (b.status === 2) { getAIPowerUpName(); } // パワーアップブロック破壊
-                            b.status = 0;
-                            score += 10;
-                            scoreEl.textContent = score;
-                        }
-                    }
-                }
-            }
-            if (allBricksBroken && bricks.length > 0) gameOver(true);
-        }
-        
-        function updateBallSpeed() {
-            let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-            if (currentSpeed < maxSpeed) {
-                let newSpeed = currentSpeed + speedIncrement;
-                let ratio = newSpeed / currentSpeed;
-                ball.dx *= ratio; ball.dy *= ratio;
-            }
-        }
-
-        function draw() {
-            drawBackground(); drawBricks();
-            drawWithGlow(drawPaddle, getComputedStyle(document.documentElement).getPropertyValue('--neon-pink').trim());
-            drawWithGlow(drawBall, getComputedStyle(document.documentElement).getPropertyValue('--neon-cyan').trim());
-            if (gameActive) { collisionDetection(); updateBallSpeed(); ball.x += ball.dx; ball.y += ball.dy; }
-            requestAnimationFrame(draw);
-        }
-
-        function gameOver(isWin) {
-            gameActive = false;
-            messageOverlay.classList.remove('hidden');
-            messageText.textContent = isWin ? 'SYSTEM CLEAR' : 'GAME OVER';
-            startButton.textContent = 'デフォルトでリトライ';
-            aiStartButton.textContent = '✨ 新しいステージを生成';
-            if (!isWin) { getAICoachComment(score); } // 負けた時だけコーチを呼ぶ
-        }
-
-        resizeCanvas();
+        init();
+        gameLoop();
     </script>
 </body>
 </html>
