@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>ブロック崩し (AIパワーアップ搭載 Ver.)</title>
+    <style>
+        @keyframes neon-pulse {
+            0%, 100% {
+                box-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan), 0 0 15px var(--neon-cyan);
+                border-color: var(--neon-cyan);
+            }
+            50% {
+                box-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink), 0 0 30px var(--neon-pink);
+                border-color: var(--neon-pink);
+            }
+        }
+        @keyframes subtle-throb {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+        }
+        @keyframes powerup-text-anim {
+            0% { transform: translateY(0) scale(0.5); opacity: 0; }
+            50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-60px) scale(1); opacity: 0; }
+        }
+
+        :root {
+            --cyber-bg: #0d0221;
+            --cyber-grid: rgba(0, 255, 255, 0.1);
+            --neon-pink: #ff00ff;
+            --neon-cyan: #00ffff;
+            --neon-lime: #7fff00;
+            --text-color: #f0f0f0;
+        }
+        
+        body {
+            margin: 0; padding: 0; background-color: var(--cyber-bg); color: var(--text-color); font-family: 'Consolas', 'Courier New', monospace;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none;
+        }
+
+        #game-container {
+            width: 95%; max-width: 1000px; aspect-ratio: 16 / 10; position: relative;
+            border: 2px solid var(--neon-cyan); border-radius: 15px; overflow: hidden; animation: neon-pulse 4s ease-in-out infinite;
+        }
+
+        #gameCanvas { display: block; width: 100%; height: 100%; background-color: transparent; }
+
+        #game-info {
+            display: flex; justify-content: space-between; width: 95%; max-width: 1000px;
+            padding: 10px 0; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+        }
+
+        #message-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(13, 2, 33, 0.95);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;
+            transition: opacity 0.5s ease; opacity: 1; z-index: 10;
+        }
+        
+        #message-overlay.hidden { opacity: 0; pointer-events: none; }
+
+        #message-box {
+            display: flex; flex-direction: column; gap: 20px; width: 80%; max-width: 500px;
+        }
+
+        #message-text {
+            font-size: 2.5em; font-weight: bold; color: var(--neon-pink);
+            text-shadow: 0 0 5px var(--neon-pink), 0 0 15px var(--neon-pink), 0 0 25px #000;
+        }
+        /* AIコーチのメッセージスタイル */
+        #ai-coach-message {
+            font-size: 1.2em; color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan); margin-top: 10px; min-height: 30px;
+        }
+
+        .button {
+            background: transparent; border: 2px solid var(--neon-lime); color: var(--neon-lime);
+            padding: 15px 20px; text-align: center; font-size: 1.2em; font-weight: bold;
+            border-radius: 50px; cursor: pointer; transition: all 0.3s ease;
+            text-shadow: 0 0 5px var(--neon-lime); box-shadow: 0 0 10px var(--neon-lime) inset, 0 0 10px var(--neon-lime);
+        }
+
+        .button:hover:not(:disabled), .button:active:not(:disabled) {
+            background: var(--neon-lime); color: var(--cyber-bg);
+            box-shadow: 0 0 20px var(--neon-lime) inset, 0 0 40px var(--neon-lime);
+        }
+        
+        .button:disabled { cursor: not-allowed; opacity: 0.5; animation: none; }
+
+        .ai-button {
+            border-color: var(--neon-pink); color: var(--neon-pink); text-shadow: 0 0 5px var(--neon-pink);
+            box-shadow: 0 0 10px var(--neon-pink) inset, 0 0 10px var(--neon-pink); animation: subtle-throb 2s ease-in-out infinite;
+        }
+        .ai-button:hover:not(:disabled), .ai-button:active:not(:disabled) {
+             background: var(--neon-pink); color: var(--cyber-bg);
+             box-shadow: 0 0 20px var(--neon-pink) inset, 0 0 40px var(--neon-pink);
+        }
+        
+        #ai-prompt {
+            width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--neon-cyan);
+            border-radius: 8px; color: var(--text-color); font-family: inherit; font-size: 1em; text-align: center; box-sizing: border-box;
+        }
+        #ai-prompt::placeholder { color: rgba(240, 240, 240, 0.5); }
+
+        /* AIパワーアップのテキスト表示用 */
+        #powerup-text {
+            position: absolute; left: 50%; top: 50%;
+            transform: translateX(-50%);
+            font-size: 2em; font-weight: bold; color: var(--neon-lime);
+            text-shadow: 0 0 10px var(--neon-lime), 0 0 20px #fff;
+            opacity: 0;
+            z-index: 20;
+            pointer-events: none;
+        }
+        #powerup-text.show {
+            animation: powerup-text-anim 2s ease-out forwards;
+        }
+
+    </style>
+</head>
+<body>
+    <div id="game-info">
+        <span>SCORE: <span id="score">0</span></span>
+        <span>LIVES: <span id="lives">5</span></span>
+    </div>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="powerup-text"></div>
+        <div id="message-overlay">
+            <div id="message-box">
+                <div id="message-text">CYBER BREAKER</div>
+                 <div id="ai-coach-message"></div>
+                <input type="text" id="ai-prompt" placeholder="例：銀河、ピラミッド">
+                <button id="aiStartButton" class="button ai-button">✨ AIでステージ生成</button>
+                <button id="startButton" class="button">デフォルトステージで開始</button>
+                 <div id="loading-indicator" style="display: none; font-size: 1.2em; color: var(--neon-cyan);">生成中...</div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const livesEl = document.getElementById('lives');
+        const messageOverlay = document.getElementById('message-overlay');
+        const messageText = document.getElementById('message-text');
+        const startButton = document.getElementById('startButton');
+        const aiPromptInput = document.getElementById('ai-prompt');
+        const aiStartButton = document.getElementById('aiStartButton');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const powerupTextEl = document.getElementById('powerup-text');
+        const aiCoachMessageEl = document.getElementById('ai-coach-message');
+
+        let gameActive = false, score = 0, lives = 5, canvasWidth, canvasHeight;
+        let ball = { x: 0, y: 0, radius: 0, dx: 0, dy: 0 };
+        let baseSpeed, maxSpeed, speedIncrement;
+        let paddle = { height: 0, width: 0, x: 0 };
+        const brick = { rowCount: 10, columnCount: 12, width: 0, height: 0, padding: 0, offsetTop: 0, offsetLeft: 0 };
+        const brickColors = ['#6600ff', '#ff00ff', '#00ffff', '#7fff00', '#ffff00', '#ff3300', '#ff0066', '#3366ff', '#ff9900', '#cc00ff'];
+        let bricks = [];
+
+        // --- Gemini API 呼び出し ---
+        async function callGemini(prompt, jsonSchema = null) {
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+            };
+            if (jsonSchema) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: jsonSchema
+                };
+            }
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            const result = await response.json();
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts.length > 0) {
+                const part = result.candidates[0].content.parts[0];
+                return jsonSchema ? JSON.parse(part.text) : part.text;
+            }
+            throw new Error("AIからの応答がありません。");
+        }
+
+        async function generateLevelWithAI(prompt) {
+            loadingIndicator.style.display = 'block';
+            aiStartButton.disabled = true;
+            startButton.disabled = true;
+            try {
+                const systemPrompt = `あなたはブロック崩しゲームのステージをデザインするAIです。ユーザーの指示「${prompt}」に基づき、${brick.columnCount}列x${brick.rowCount}行のブロック配置をJSONで生成してください。アクティブなブロックは1、空は0です。`;
+                const schema = { type: "OBJECT", properties: { layout: { type: "ARRAY", items: { type: "ARRAY", items: { type: "NUMBER" } } } }, required: ["layout"] };
+                const result = await callGemini(systemPrompt, schema);
+                if (result.layout && result.layout.length === brick.rowCount && result.layout[0].length === brick.columnCount) {
+                    return result.layout;
+                }
+                throw new Error("無効なレイアウトデータが返されました。");
+            } catch (error) {
+                console.error("AIステージ生成エラー:", error);
+                alert("ステージ生成に失敗しました。プロンプトを変えてもう一度お試しください。");
+                return null;
+            } finally {
+                loadingIndicator.style.display = 'none';
+                aiStartButton.disabled = false;
+                startButton.disabled = false;
+            }
+        }
+        
+        async function getAIPowerUpName() {
+            try {
+                const prompt = `あなたはゲームのAIです。サイバーパンクなブロック崩しで使える、一時的なパワーアップの名前を一つ考案してください。例：「マルチボール」「プラズマ砲」「時間歪曲」。クリエイティブで短い日本語のフレーズ（6文字以内）で、名前だけを返してください。`;
+                const powerUpName = await callGemini(prompt);
+                powerupTextEl.textContent = powerUpName.trim();
+                powerupTextEl.className = 'show';
+                setTimeout(() => { powerupTextEl.className = ''; }, 2000);
+            } catch(error) {
+                console.error("AIパワーアップ名生成エラー:", error);
+            }
+        }
+
+        async function getAICoachComment(finalScore) {
+            aiCoachMessageEl.textContent = "AIコーチが分析中...";
+            try {
+                const prompt = `あなたはサイバーパンクなゲームのAIコーチです。プレイヤーがブロック崩しをゲームオーバーになりました。スコアは ${finalScore}点です。このスコアに基づき、プレイヤーの健闘を称え、次につながるような短いアドバイスや励ましの言葉を、20文字程度の日本語で返してください。`;
+                const comment = await callGemini(prompt);
+                aiCoachMessageEl.textContent = comment;
+            } catch (error) {
+                console.error("AIコーチコメント生成エラー:", error);
+                aiCoachMessageEl.textContent = "次の挑戦を待っている...";
+            }
+        }
+
+        // --- ゲームロジック ---
+        function createBricks(customLayout = null) {
+            bricks = [];
+            let hasBricks = false;
+            let powerupBlocksCount = 0;
+            const maxPowerupBlocks = 3; // ステージあたりのパワーアップブロック最大数
+
+            for (let r = 0; r < brick.rowCount; r++) {
+                bricks[r] = [];
+                for (let c = 0; c < brick.columnCount; c++) {
+                    let status = customLayout ? (customLayout[r]?.[c] ?? 0) : 1;
+                    if (status === 1) {
+                        hasBricks = true;
+                        // ランダムでパワーアップブロックに変化させる
+                        if (powerupBlocksCount < maxPowerupBlocks && Math.random() < 0.1) {
+                            status = 2; // 2はパワーアップブロック
+                            powerupBlocksCount++;
+                        }
+                    }
+                    bricks[r][c] = { x: 0, y: 0, status: status };
+                }
+            }
+            if (!hasBricks) {
+                console.log("AIが空のステージを生成したため、デフォルトステージを生成します。");
+                createBricks(); 
+            }
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvasWidth = container.clientWidth;
+            canvasHeight = container.clientHeight;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            initializeGameParameters();
+            if (bricks.length === 0) createBricks();
+            draw();
+        }
+
+        function initializeGameParameters() {
+            ball.radius = canvasWidth * 0.01;
+            paddle.height = canvasHeight * 0.025;
+            paddle.width = canvasWidth * 0.15;
+            baseSpeed = canvasHeight * 0.0045;
+            maxSpeed = canvasHeight * 0.012;
+            speedIncrement = 0.00003;
+            brick.padding = canvasWidth * 0.005;
+            brick.offsetTop = canvasHeight * 0.05;
+            brick.offsetLeft = canvasWidth * 0.025;
+            const bricksAreaWidth = canvasWidth * 0.95;
+            brick.width = (bricksAreaWidth - (brick.columnCount) * brick.padding) / brick.columnCount;
+            brick.height = canvasHeight * 0.04;
+        }
+
+        function resetBallAndPaddle() {
+            gameActive = false;
+            ball.x = canvasWidth / 2;
+            ball.y = canvasHeight - (canvasHeight * 0.15);
+            paddle.x = (canvasWidth - paddle.width) / 2;
+            let currentSpeed = baseSpeed;
+            ball.dy = -currentSpeed;
+            ball.dx = currentSpeed * (Math.random() < 0.5 ? 1 : -1);
+            setTimeout(() => { gameActive = true; }, 500);
+        }
+        
+        function startGame() {
+            messageOverlay.classList.add('hidden');
+            score = 0;
+            lives = 5;
+            scoreEl.textContent = score;
+            livesEl.textContent = lives;
+            aiCoachMessageEl.textContent = ""; // コーチのコメントをリセット
+            initializeGameParameters();
+            resetBallAndPaddle();
+        }
+
+        // --- イベントリスナー ---
+        startButton.addEventListener('click', () => { createBricks(); startGame(); });
+        aiStartButton.addEventListener('click', async () => {
+            const prompt = aiPromptInput.value.trim();
+            if (!prompt) { alert("ステージのイメージを入力してください。"); return; }
+            const aiLayout = await generateLevelWithAI(prompt);
+            if (aiLayout) { createBricks(aiLayout); startGame(); }
+        });
+
+        document.addEventListener('mousemove', e => movePaddle(e.clientX), false);
+        document.addEventListener('touchmove', e => { if (e.touches.length > 0) movePaddle(e.touches[0].clientX); }, false);
+        window.addEventListener('resize', resizeCanvas, false);
+
+        function movePaddle(clientX) {
+            const relativeX = clientX - canvas.getBoundingClientRect().left;
+            paddle.x = relativeX - paddle.width / 2;
+            if (paddle.x < 0) paddle.x = 0;
+            if (paddle.x + paddle.width > canvasWidth) paddle.x = canvasWidth - paddle.width;
+        }
+        
+        // --- 描画と衝突判定 ---
+        function drawBackground() {
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--cyber-bg').trim();
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--cyber-grid').trim();
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvasWidth; i += 20) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvasHeight); ctx.stroke(); }
+            for (let i = 0; i < canvasHeight; i += 20) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvasWidth, i); ctx.stroke(); }
+        }
+
+        function drawWithGlow(drawFunction, color) {
+            ctx.shadowColor = color; ctx.shadowBlur = 15; ctx.fillStyle = color;
+            ctx.beginPath(); drawFunction(); ctx.fill(); ctx.closePath(); ctx.shadowBlur = 0;
+        }
+
+        const drawBall = () => ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        const drawPaddle = () => ctx.rect(paddle.x, canvasHeight - paddle.height, paddle.width, paddle.height);
+
+        function drawBricks() {
+            for (let r = 0; r < brick.rowCount; r++) {
+                for (let c = 0; c < brick.columnCount; c++) {
+                    const b = bricks[r][c];
+                    if (b.status > 0) {
+                        const color = b.status === 2 ? '#ffffff' : brickColors[r % brickColors.length]; // パワーアップブロックは白
+                        b.x = (c * (brick.width + brick.padding)) + brick.offsetLeft;
+                        b.y = (r * (brick.height + brick.padding)) + brick.offsetTop;
+                        ctx.shadowColor = color; ctx.shadowBlur = b.status === 2 ? 20 : 10;
+                        ctx.fillStyle = color;
+                        ctx.beginPath(); ctx.rect(b.x, b.y, brick.width, brick.height); ctx.fill(); ctx.closePath(); ctx.shadowBlur = 0;
+                    }
+                }
+            }
+        }
+        
+        function collisionDetection() {
+            if (ball.x + ball.dx > canvasWidth - ball.radius || ball.x + ball.dx < ball.radius) { ball.dx = -ball.dx; }
+            if (ball.y + ball.dy < ball.radius) { ball.dy = -ball.dy; }
+            else if (ball.y + ball.dy > canvasHeight - ball.radius - paddle.height) {
+                if (ball.x > paddle.x && ball.x < paddle.x + paddle.width && ball.y < canvasHeight - paddle.height) {
+                    let collidePoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                    let angle = collidePoint * (Math.PI / 3);
+                    let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                    ball.dx = currentSpeed * Math.sin(angle);
+                    ball.dy = -currentSpeed * Math.cos(angle);
+                } else if (ball.y > canvasHeight) {
+                    lives--;
+                    livesEl.textContent = lives;
+                    if (lives <= 0) { gameOver(false); }
+                    else { resetBallAndPaddle(); }
+                }
+            }
+            let allBricksBroken = true;
+            for (let r = 0; r < brick.rowCount; r++) {
+                for (let c = 0; c < brick.columnCount; c++) {
+                    const b = bricks[r][c];
+                    if (b.status > 0) {
+                        allBricksBroken = false;
+                        if (ball.x > b.x && ball.x < b.x + brick.width && ball.y > b.y && ball.y < b.y + brick.height) {
+                            ball.dy = -ball.dy;
+                            if (b.status === 2) { getAIPowerUpName(); } // パワーアップブロック破壊
+                            b.status = 0;
+                            score += 10;
+                            scoreEl.textContent = score;
+                        }
+                    }
+                }
+            }
+            if (allBricksBroken && bricks.length > 0) gameOver(true);
+        }
+        
+        function updateBallSpeed() {
+            let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+            if (currentSpeed < maxSpeed) {
+                let newSpeed = currentSpeed + speedIncrement;
+                let ratio = newSpeed / currentSpeed;
+                ball.dx *= ratio; ball.dy *= ratio;
+            }
+        }
+
+        function draw() {
+            drawBackground(); drawBricks();
+            drawWithGlow(drawPaddle, getComputedStyle(document.documentElement).getPropertyValue('--neon-pink').trim());
+            drawWithGlow(drawBall, getComputedStyle(document.documentElement).getPropertyValue('--neon-cyan').trim());
+            if (gameActive) { collisionDetection(); updateBallSpeed(); ball.x += ball.dx; ball.y += ball.dy; }
+            requestAnimationFrame(draw);
+        }
+
+        function gameOver(isWin) {
+            gameActive = false;
+            messageOverlay.classList.remove('hidden');
+            messageText.textContent = isWin ? 'SYSTEM CLEAR' : 'GAME OVER';
+            startButton.textContent = 'デフォルトでリトライ';
+            aiStartButton.textContent = '✨ 新しいステージを生成';
+            if (!isWin) { getAICoachComment(score); } // 負けた時だけコーチを呼ぶ
+        }
+
+        resizeCanvas();
+    </script>
+</body>
+</html>
